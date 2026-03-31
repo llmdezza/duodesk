@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
+import { getSessionUserId, unauthorized, badRequest, parseJson, truncate } from "@/lib/api"
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const userId = await getSessionUserId()
+  if (!userId) return unauthorized()
 
   const items = await db.shoppingItem.findMany({
     orderBy: [{ checked: "asc" }, { createdAt: "desc" }],
@@ -17,24 +15,25 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const userId = await getSessionUserId()
+  if (!userId) return unauthorized()
 
-  const body = await req.json()
-  const { name, quantity, category } = body
+  const body = await parseJson(req)
+  if (!body) return badRequest("Invalid JSON")
 
-  if (!name?.trim()) {
-    return NextResponse.json({ error: "Name is required" }, { status: 400 })
-  }
+  const name = truncate(body.name as string, 200)
+  if (!name) return badRequest("Name is required")
+
+  const quantity = typeof body.quantity === "number" && body.quantity > 0 && body.quantity <= 9999
+    ? Math.floor(body.quantity)
+    : 1
 
   const item = await db.shoppingItem.create({
     data: {
-      name: name.trim(),
-      quantity: quantity || 1,
-      category: category?.trim() || null,
-      userId: session.user.id,
+      name,
+      quantity,
+      category: truncate(body.category as string, 100),
+      userId,
     },
     include: { createdBy: { select: { id: true, name: true } } },
   })

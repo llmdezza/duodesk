@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
+import { getSessionUserId, unauthorized, badRequest, parseJson, truncate } from "@/lib/api"
 
 export async function GET(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const userId = await getSessionUserId()
+  if (!userId) return unauthorized()
 
   const { searchParams } = req.nextUrl
   const upcoming = searchParams.get("upcoming")
-  const month = searchParams.get("month") // format: "2026-03"
-  const year = searchParams.get("year")
+  const month = searchParams.get("month")
 
   let where = {}
 
   if (upcoming) {
     where = { startDate: { gte: new Date() } }
-  } else if (month) {
+  } else if (month && /^\d{4}-\d{2}$/.test(month)) {
     const [y, m] = month.split("-").map(Number)
     const start = new Date(y, m - 1, 1)
     const end = new Date(y, m, 0, 23, 59, 59, 999)
@@ -28,10 +25,6 @@ export async function GET(req: NextRequest) {
         { AND: [{ startDate: { lte: start } }, { endDate: { gte: end } }] },
       ],
     }
-  } else if (year) {
-    const start = new Date(Number(year), 0, 1)
-    const end = new Date(Number(year), 11, 31, 23, 59, 59, 999)
-    where = { startDate: { gte: start, lte: end } }
   }
 
   const events = await db.calendarEvent.findMany({
@@ -44,27 +37,36 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const userId = await getSessionUserId()
+  if (!userId) return unauthorized()
+
+  const body = await parseJson(req)
+  if (!body) return badRequest("Invalid JSON")
+
+  const title = truncate(body.title as string, 200)
+  if (!title) return badRequest("Title is required")
+
+  const startDate = body.startDate as string
+  if (!startDate || isNaN(Date.parse(startDate))) {
+    return badRequest("Valid start date is required")
   }
 
-  const body = await req.json()
-  const { title, description, startDate, endDate, allDay, color } = body
-
-  if (!title?.trim() || !startDate) {
-    return NextResponse.json({ error: "Title and start date required" }, { status: 400 })
+  const endDate = body.endDate as string | undefined
+  if (endDate && isNaN(Date.parse(endDate))) {
+    return badRequest("Invalid end date")
   }
+
+  const color = /^#[0-9a-fA-F]{6}$/.test(body.color as string || "") ? body.color as string : "#3b82f6"
 
   const event = await db.calendarEvent.create({
     data: {
-      title: title.trim(),
-      description: description?.trim() || null,
+      title,
+      description: truncate(body.description as string, 2000),
       startDate: new Date(startDate),
       endDate: endDate ? new Date(endDate) : null,
-      allDay: allDay ?? false,
-      color: color || "#3b82f6",
-      userId: session.user.id,
+      allDay: body.allDay === true,
+      color,
+      userId,
     },
     include: { createdBy: { select: { id: true, name: true } } },
   })

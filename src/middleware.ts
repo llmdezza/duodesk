@@ -11,6 +11,10 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/login", req.url))
   }
 
+  if (pathname.startsWith("/api/") && !pathname.startsWith("/api/auth/") && !isLoggedIn) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
   if (pathname === "/login" && isLoggedIn) {
     return NextResponse.redirect(new URL("/dashboard", req.url))
   }
@@ -19,5 +23,5 @@ export default auth((req) => {
 })
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login"],
+  matcher: ["/dashboard/:path*", "/login", "/api/:path*"],
 }

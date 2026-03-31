@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
+import { getSessionUserId, unauthorized, badRequest, parseJson, truncate } from "@/lib/api"
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const userId = await getSessionUserId()
+  if (!userId) return unauthorized()
 
   const notes = await db.note.findMany({
     orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
@@ -17,24 +15,23 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const userId = await getSessionUserId()
+  if (!userId) return unauthorized()
 
-  const body = await req.json()
-  const { title, content, color } = body
+  const body = await parseJson(req)
+  if (!body) return badRequest("Invalid JSON")
 
-  if (!title?.trim()) {
-    return NextResponse.json({ error: "Title is required" }, { status: 400 })
-  }
+  const title = truncate(body.title as string, 200)
+  if (!title) return badRequest("Title is required")
+
+  const color = /^#[0-9a-fA-F]{6}$/.test(body.color as string || "") ? body.color as string : "#fef3c7"
 
   const note = await db.note.create({
     data: {
-      title: title.trim(),
-      content: content?.trim() || "",
-      color: color || "#fef3c7",
-      userId: session.user.id,
+      title,
+      content: truncate(body.content as string, 10000) || "",
+      color,
+      userId,
     },
     include: { createdBy: { select: { id: true, name: true } } },
   })

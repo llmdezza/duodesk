@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
+import { getSessionUserId, unauthorized, badRequest, parseJson, truncate, VALID_TASK_STATUSES } from "@/lib/api"
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const userId = await getSessionUserId()
+  if (!userId) return unauthorized()
 
   const tasks = await db.task.findMany({
     orderBy: [{ status: "asc" }, { position: "asc" }, { createdAt: "desc" }],
@@ -17,30 +15,32 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const userId = await getSessionUserId()
+  if (!userId) return unauthorized()
 
-  const body = await req.json()
-  const { title, description, status } = body
+  const body = await parseJson(req)
+  if (!body) return badRequest("Invalid JSON")
 
-  if (!title?.trim()) {
-    return NextResponse.json({ error: "Title is required" }, { status: 400 })
+  const title = truncate(body.title as string, 200)
+  if (!title) return badRequest("Title is required")
+
+  const status = (body.status as string) || "todo"
+  if (!VALID_TASK_STATUSES.includes(status)) {
+    return badRequest(`Invalid status. Must be one of: ${VALID_TASK_STATUSES.join(", ")}`)
   }
 
   const maxPosition = await db.task.aggregate({
     _max: { position: true },
-    where: { status: status || "todo" },
+    where: { status },
   })
 
   const task = await db.task.create({
     data: {
-      title: title.trim(),
-      description: description?.trim() || null,
-      status: status || "todo",
+      title,
+      description: truncate(body.description as string, 2000),
+      status,
       position: (maxPosition._max.position ?? -1) + 1,
-      userId: session.user.id,
+      userId,
     },
     include: { createdBy: { select: { id: true, name: true } } },
   })

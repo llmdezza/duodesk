@@ -1,15 +1,26 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
+import { getSessionUserId, unauthorized, badRequest, notFound, parseJson, VALID_TASK_STATUSES } from "@/lib/api"
 
 export async function POST(req: NextRequest) {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const userId = await getSessionUserId()
+  if (!userId) return unauthorized()
+
+  const body = await parseJson(req)
+  if (!body) return badRequest("Invalid JSON")
+
+  const { taskId, newStatus, newPosition } = body as { taskId: string; newStatus: string; newPosition: number }
+
+  if (!taskId || typeof newPosition !== "number") {
+    return badRequest("taskId and newPosition are required")
   }
 
-  const body = await req.json()
-  const { taskId, newStatus, newPosition } = body
+  if (!VALID_TASK_STATUSES.includes(newStatus)) {
+    return badRequest(`Invalid status. Must be one of: ${VALID_TASK_STATUSES.join(", ")}`)
+  }
+
+  const existing = await db.task.findUnique({ where: { id: taskId } })
+  if (!existing) return notFound("Task")
 
   await db.task.update({
     where: { id: taskId },
