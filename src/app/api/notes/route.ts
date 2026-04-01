@@ -2,11 +2,19 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getSessionUserId, unauthorized, badRequest, parseJson, truncate } from "@/lib/api"
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const userId = await getSessionUserId()
   if (!userId) return unauthorized()
 
+  const mode = req.nextUrl.searchParams.get("mode")
+  const where = mode === "personal"
+    ? { personal: true, userId }
+    : mode === "shared"
+    ? { personal: false }
+    : {}
+
   const notes = await db.note.findMany({
+    where,
     orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
     include: { createdBy: { select: { id: true, name: true } } },
   })
@@ -31,6 +39,8 @@ export async function POST(req: NextRequest) {
       title,
       content: truncate(body.content as string, 10000) || "",
       color,
+      isTask: body.isTask === true,
+      personal: body.personal === true,
       userId,
     },
     include: { createdBy: { select: { id: true, name: true } } },

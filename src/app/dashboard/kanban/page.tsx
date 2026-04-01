@@ -8,8 +8,10 @@ import {
   Draggable,
   type DropResult,
 } from "@hello-pangea/dnd"
-import { Plus, Trash2, GripVertical, X } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { Plus, Trash2, GripVertical, X, Lock } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ModeToggle } from "@/components/mode-toggle"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
@@ -19,23 +21,29 @@ type Task = {
   description: string | null
   status: string
   position: number
+  personal: boolean
   createdBy: { id: string; name: string }
   createdAt: string
 }
 
 const COLUMNS = [
-  { id: "todo", title: "To Do", color: "border-blue-500" },
-  { id: "in_progress", title: "In Progress", color: "border-amber-500" },
-  { id: "done", title: "Done", color: "border-green-500" },
+  { id: "todo", title: "Сделать", color: "border-blue-500" },
+  { id: "in_progress", title: "В работе", color: "border-amber-500" },
+  { id: "done", title: "Готово", color: "border-green-500" },
 ] as const
 
+type Mode = "all" | "personal" | "shared"
+
 export default function KanbanPage() {
-  const { data: tasks = [], mutate } = useSWR<Task[]>("/api/tasks", fetcher, {
+  const [mode, setMode] = useState<Mode>("all")
+  const modeParam = mode !== "all" ? `?mode=${mode}` : ""
+  const { data: tasks = [], mutate } = useSWR<Task[]>(`/api/tasks${modeParam}`, fetcher, {
     refreshInterval: 3000,
   })
   const [addingTo, setAddingTo] = useState<string | null>(null)
   const [newTitle, setNewTitle] = useState("")
   const [newDesc, setNewDesc] = useState("")
+  const [isPersonal, setIsPersonal] = useState(false)
 
   const tasksByColumn = useCallback(
     (columnId: string) =>
@@ -51,11 +59,12 @@ export default function KanbanPage() {
     await fetch("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: newTitle, description: newDesc || null, status }),
+      body: JSON.stringify({ title: newTitle, description: newDesc || null, status, personal: isPersonal }),
     })
 
     setNewTitle("")
     setNewDesc("")
+    setIsPersonal(false)
     setAddingTo(null)
     mutate()
   }
@@ -92,7 +101,9 @@ export default function KanbanPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold tracking-tight">Kanban Board</h1>
+      <h1 className="text-2xl font-bold tracking-tight">Канбан-доска</h1>
+
+      <ModeToggle mode={mode} onChange={setMode} />
 
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -116,6 +127,7 @@ export default function KanbanPage() {
                     setAddingTo(addingTo === col.id ? null : col.id)
                     setNewTitle("")
                     setNewDesc("")
+                    setIsPersonal(false)
                   }}
                 >
                   {addingTo === col.id ? (
@@ -126,36 +138,54 @@ export default function KanbanPage() {
                 </Button>
               </div>
 
-              {addingTo === col.id && (
-                <div className="mb-3 space-y-2 p-3 rounded-lg border border-border bg-background">
-                  <input
-                    autoFocus
-                    type="text"
-                    placeholder="Task title..."
-                    value={newTitle}
-                    onChange={(e) => setNewTitle(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleAdd(col.id)}
-                    className="w-full text-sm px-2 py-1.5 rounded-md border border-input bg-background
-                      focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                  <textarea
-                    placeholder="Description (optional)"
-                    value={newDesc}
-                    onChange={(e) => setNewDesc(e.target.value)}
-                    rows={2}
-                    className="w-full text-sm px-2 py-1.5 rounded-md border border-input bg-background
-                      focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                  />
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    onClick={() => handleAdd(col.id)}
-                    disabled={!newTitle.trim()}
+              <AnimatePresence>
+                {addingTo === col.id && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="mb-3 space-y-2 p-3 rounded-lg border border-border bg-background overflow-hidden"
                   >
-                    Add Task
-                  </Button>
-                </div>
-              )}
+                    <input
+                      autoFocus
+                      type="text"
+                      placeholder="Название задачи..."
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleAdd(col.id)}
+                      className="w-full text-sm px-2 py-1.5 rounded-md border border-input bg-background
+                        focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <textarea
+                      placeholder="Описание (необязательно)"
+                      value={newDesc}
+                      onChange={(e) => setNewDesc(e.target.value)}
+                      rows={2}
+                      className="w-full text-sm px-2 py-1.5 rounded-md border border-input bg-background
+                        focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                    />
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isPersonal}
+                        onChange={(e) => setIsPersonal(e.target.checked)}
+                        className="rounded border-input"
+                      />
+                      <Lock className="h-3.5 w-3.5" />
+                      Личная задача
+                    </label>
+                    <Button
+                      size="sm"
+                      className="w-full transition-transform active:scale-[0.98]"
+                      onClick={() => handleAdd(col.id)}
+                      disabled={!newTitle.trim()}
+                    >
+                      Добавить
+                    </Button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <Droppable droppableId={col.id}>
                 {(provided, snapshot) => (
@@ -189,6 +219,7 @@ export default function KanbanPage() {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium leading-tight">
+                                  {task.personal && <Lock className="inline h-3 w-3 mr-1 text-muted-foreground" />}
                                   {task.title}
                                 </p>
                                 {task.description && (

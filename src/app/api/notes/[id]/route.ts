@@ -27,6 +27,8 @@ export async function PATCH(
       ...(body.content !== undefined && { content: truncate(body.content as string, 10000) || "" }),
       ...(body.color !== undefined && { color: body.color as string }),
       ...(body.pinned !== undefined && { pinned: body.pinned === true }),
+      ...(body.completed !== undefined && { completed: body.completed === true }),
+      ...(body.isTask !== undefined && { isTask: body.isTask === true }),
     },
     include: { createdBy: { select: { id: true, name: true } } },
   })

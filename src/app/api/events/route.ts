@@ -9,23 +9,34 @@ export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const upcoming = searchParams.get("upcoming")
   const month = searchParams.get("month")
+  const mode = searchParams.get("mode") // "personal" or "shared"
 
-  let where = {}
+  const conditions: Record<string, unknown>[] = []
+
+  // Filter by mode: personal shows only user's events, shared shows non-personal
+  if (mode === "personal") {
+    conditions.push({ personal: true, userId })
+  } else if (mode === "shared") {
+    conditions.push({ personal: false })
+  }
+  // no mode = all events visible to user (shared + own personal)
 
   if (upcoming) {
-    where = { startDate: { gte: new Date() } }
+    conditions.push({ startDate: { gte: new Date() } })
   } else if (month && /^\d{4}-\d{2}$/.test(month)) {
     const [y, m] = month.split("-").map(Number)
     const start = new Date(y, m - 1, 1)
     const end = new Date(y, m, 0, 23, 59, 59, 999)
-    where = {
+    conditions.push({
       OR: [
         { startDate: { gte: start, lte: end } },
         { endDate: { gte: start, lte: end } },
         { AND: [{ startDate: { lte: start } }, { endDate: { gte: end } }] },
       ],
-    }
+    })
   }
+
+  const where = conditions.length > 0 ? { AND: conditions } : {}
 
   const events = await db.calendarEvent.findMany({
     where,
@@ -65,6 +76,7 @@ export async function POST(req: NextRequest) {
       startDate: new Date(startDate),
       endDate: endDate ? new Date(endDate) : null,
       allDay: body.allDay === true,
+      personal: body.personal === true,
       color,
       userId,
     },

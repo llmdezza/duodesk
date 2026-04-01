@@ -1,0 +1,22 @@
+-- RedefineTables
+PRAGMA defer_foreign_keys=ON;
+PRAGMA foreign_keys=OFF;
+CREATE TABLE "new_CalendarEvent" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "startDate" DATETIME NOT NULL,
+    "endDate" DATETIME,
+    "allDay" BOOLEAN NOT NULL DEFAULT false,
+    "personal" BOOLEAN NOT NULL DEFAULT false,
+    "color" TEXT DEFAULT '#3b82f6',
+    "userId" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "CalendarEvent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+INSERT INTO "new_CalendarEvent" ("allDay", "color", "createdAt", "description", "endDate", "id", "startDate", "title", "updatedAt", "userId") SELECT "allDay", "color", "createdAt", "description", "endDate", "id", "startDate", "title", "updatedAt", "userId" FROM "CalendarEvent";
+DROP TABLE "CalendarEvent";
+ALTER TABLE "new_CalendarEvent" RENAME TO "CalendarEvent";
+PRAGMA foreign_keys=ON;
+PRAGMA defer_foreign_keys=OFF;

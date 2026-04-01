@@ -2,11 +2,19 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getSessionUserId, unauthorized, badRequest, parseJson, truncate } from "@/lib/api"
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const userId = await getSessionUserId()
   if (!userId) return unauthorized()
 
+  const mode = req.nextUrl.searchParams.get("mode")
+  const where = mode === "personal"
+    ? { personal: true, userId }
+    : mode === "shared"
+    ? { personal: false }
+    : {}
+
   const items = await db.shoppingItem.findMany({
+    where,
     orderBy: [{ checked: "asc" }, { createdAt: "desc" }],
     include: { createdBy: { select: { id: true, name: true } } },
   })
@@ -33,6 +41,7 @@ export async function POST(req: NextRequest) {
       name,
       quantity,
       category: truncate(body.category as string, 100),
+      personal: body.personal === true,
       userId,
     },
     include: { createdBy: { select: { id: true, name: true } } },

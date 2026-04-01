@@ -6,11 +6,11 @@ import { LayoutGrid, Calendar, StickyNote, ShoppingCart, Home } from "lucide-rea
 import { cn } from "@/lib/utils"
 
 const navItems = [
-  { href: "/dashboard", label: "Home", icon: Home },
-  { href: "/dashboard/kanban", label: "Kanban", icon: LayoutGrid },
-  { href: "/dashboard/calendar", label: "Calendar", icon: Calendar },
-  { href: "/dashboard/notes", label: "Notes", icon: StickyNote },
-  { href: "/dashboard/shopping", label: "Shopping", icon: ShoppingCart },
+  { href: "/dashboard", label: "Главная", icon: Home },
+  { href: "/dashboard/kanban", label: "Канбан", icon: LayoutGrid },
+  { href: "/dashboard/calendar", label: "Календарь", icon: Calendar },
+  { href: "/dashboard/notes", label: "Заметки", icon: StickyNote },
+  { href: "/dashboard/shopping", label: "Покупки", icon: ShoppingCart },
 ]
 
 export function DashboardSidebar() {

@@ -12,9 +12,9 @@ export default function HomePage() {
 
       <BackgroundPaths
         title="DuoDesk"
-        subtitle="Family workspace for Artyom & Alina"
-        buttonText="Discover Excellence"
-        buttonHref="/dashboard/kanban"
+        subtitle="Семейное рабочее пространство Артёма и Алины"
+        buttonText="Начать работу"
+        buttonHref="/dashboard"
       />
 
       <Footer
@@ -22,17 +22,17 @@ export default function HomePage() {
         brandName="DuoDesk"
         socialLinks={[]}
         mainLinks={[
-          { href: "/login", label: "Sign In" },
-          { href: "/dashboard", label: "Dashboard" },
-          { href: "/dashboard/kanban", label: "Kanban" },
-          { href: "/dashboard/calendar", label: "Calendar" },
+          { href: "/login", label: "Войти" },
+          { href: "/dashboard", label: "Дашборд" },
+          { href: "/dashboard/kanban", label: "Канбан" },
+          { href: "/dashboard/calendar", label: "Календарь" },
         ]}
         legalLinks={[
-          { href: "#", label: "Made with love" },
+          { href: "#", label: "Сделано с любовью" },
         ]}
         copyright={{
           text: `© ${new Date().getFullYear()} DuoDesk`,
-          license: "Artyom & Alina",
+          license: "Артём и Алина",
         }}
       />
     </main>

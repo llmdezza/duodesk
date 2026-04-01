@@ -2,11 +2,19 @@ import { NextRequest, NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getSessionUserId, unauthorized, badRequest, parseJson, truncate, VALID_TASK_STATUSES } from "@/lib/api"
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const userId = await getSessionUserId()
   if (!userId) return unauthorized()
 
+  const mode = req.nextUrl.searchParams.get("mode")
+  const where = mode === "personal"
+    ? { personal: true, userId }
+    : mode === "shared"
+    ? { personal: false }
+    : {}
+
   const tasks = await db.task.findMany({
+    where,
     orderBy: [{ status: "asc" }, { position: "asc" }, { createdAt: "desc" }],
     include: { createdBy: { select: { id: true, name: true } } },
   })
@@ -40,6 +48,7 @@ export async function POST(req: NextRequest) {
       description: truncate(body.description as string, 2000),
       status,
       position: (maxPosition._max.position ?? -1) + 1,
+      personal: body.personal === true,
       userId,
     },
     include: { createdBy: { select: { id: true, name: true } } },

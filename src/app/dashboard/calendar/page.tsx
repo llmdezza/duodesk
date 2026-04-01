@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from "react"
 import useSWR from "swr"
-import { ChevronLeft, ChevronRight, Plus, X, Trash2 } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { ChevronLeft, ChevronRight, Plus, X, Trash2, Lock, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -14,12 +15,19 @@ type CalendarEvent = {
   startDate: string
   endDate: string | null
   allDay: boolean
+  personal: boolean
   color: string
   createdBy: { id: string; name: string }
 }
 
-const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+const MONTHS_RU = [
+  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
+]
 const COLORS = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4"]
+
+type CalendarMode = "all" | "personal" | "shared"
 
 function getMonthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
@@ -29,24 +37,20 @@ function getMonthDays(year: number, month: number) {
   const firstDay = new Date(year, month, 1)
   const lastDay = new Date(year, month + 1, 0)
 
-  // Monday = 0, Sunday = 6
   let startOffset = firstDay.getDay() - 1
   if (startOffset < 0) startOffset = 6
 
   const days: Array<{ date: Date; isCurrentMonth: boolean }> = []
 
-  // Previous month padding
   for (let i = startOffset - 1; i >= 0; i--) {
     const d = new Date(year, month, -i)
     days.push({ date: d, isCurrentMonth: false })
   }
 
-  // Current month
   for (let i = 1; i <= lastDay.getDate(); i++) {
     days.push({ date: new Date(year, month, i), isCurrentMonth: true })
   }
 
-  // Next month padding to fill 6 rows
   const remaining = 42 - days.length
   for (let i = 1; i <= remaining; i++) {
     days.push({ date: new Date(year, month + 1, i), isCurrentMonth: false })
@@ -56,16 +60,12 @@ function getMonthDays(year: number, month: number) {
 }
 
 function isSameDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  )
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
 function formatTime(dateStr: string) {
   const d = new Date(dateStr)
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  return d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
 }
 
 export default function CalendarPage() {
@@ -73,18 +73,21 @@ export default function CalendarPage() {
   const [viewDate, setViewDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1))
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
+  const [mode, setMode] = useState<CalendarMode>("all")
   const [newEvent, setNewEvent] = useState({
     title: "",
     description: "",
     startTime: "09:00",
     endTime: "10:00",
     allDay: false,
+    personal: false,
     color: "#3b82f6",
   })
 
   const monthKey = getMonthKey(viewDate)
+  const modeParam = mode !== "all" ? `&mode=${mode}` : ""
   const { data: events = [], mutate } = useSWR<CalendarEvent[]>(
-    `/api/events?month=${monthKey}`,
+    `/api/events?month=${monthKey}${modeParam}`,
     fetcher,
     { refreshInterval: 5000 }
   )
@@ -104,10 +107,8 @@ export default function CalendarPage() {
 
   const selectedEvents = selectedDate ? eventsForDate(selectedDate) : []
 
-  const prevMonth = () =>
-    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))
-  const nextMonth = () =>
-    setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))
+  const prevMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))
+  const nextMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))
   const goToday = () => {
     setViewDate(new Date(today.getFullYear(), today.getMonth(), 1))
     setSelectedDate(today)
@@ -138,11 +139,12 @@ export default function CalendarPage() {
         startDate: startDate.toISOString(),
         endDate: endDate?.toISOString() || null,
         allDay: newEvent.allDay,
+        personal: newEvent.personal,
         color: newEvent.color,
       }),
     })
 
-    setNewEvent({ title: "", description: "", startTime: "09:00", endTime: "10:00", allDay: false, color: "#3b82f6" })
+    setNewEvent({ title: "", description: "", startTime: "09:00", endTime: "10:00", allDay: false, personal: false, color: "#3b82f6" })
     setShowAddForm(false)
     mutate()
   }
@@ -152,16 +154,37 @@ export default function CalendarPage() {
     mutate()
   }
 
-  const monthLabel = viewDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+  const monthLabel = `${MONTHS_RU[viewDate.getMonth()]} ${viewDate.getFullYear()}`
 
   return (
     <div className="space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Calendar</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Календарь</h1>
         <Button variant="outline" size="sm" onClick={goToday}>
-          Today
+          Сегодня
         </Button>
+      </div>
+
+      {/* Mode toggle */}
+      <div className="flex gap-1 p-1 rounded-lg bg-muted">
+        {([
+          { key: "all", label: "Все", icon: null },
+          { key: "shared", label: "Общее", icon: Users },
+          { key: "personal", label: "Личное", icon: Lock },
+        ] as const).map((m) => (
+          <button
+            key={m.key}
+            onClick={() => setMode(m.key)}
+            className={`flex-1 flex items-center justify-center gap-1.5 text-sm py-1.5 px-3 rounded-md transition-all duration-200 ${
+              mode === m.key
+                ? "bg-background text-foreground shadow-sm font-medium scale-[1.02]"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {m.icon && <m.icon className="h-3.5 w-3.5" />}
+            {m.label}
+          </button>
+        ))}
       </div>
 
       {/* Month navigation */}
@@ -177,19 +200,14 @@ export default function CalendarPage() {
 
       {/* Calendar grid */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        {/* Weekday headers */}
         <div className="grid grid-cols-7 border-b border-border">
           {WEEKDAYS.map((d) => (
-            <div
-              key={d}
-              className="text-center text-xs font-medium text-muted-foreground py-2"
-            >
+            <div key={d} className="text-center text-xs font-medium text-muted-foreground py-2">
               {d}
             </div>
           ))}
         </div>
 
-        {/* Days grid */}
         <div className="grid grid-cols-7">
           {days.map((day, i) => {
             const dayEvents = eventsForDate(day.date)
@@ -215,37 +233,25 @@ export default function CalendarPage() {
                 >
                   {day.date.getDate()}
                 </span>
-                {/* Event dots on mobile, previews on desktop */}
                 {dayEvents.length > 0 && (
                   <>
                     <div className="flex gap-0.5 mt-0.5 sm:hidden">
                       {dayEvents.slice(0, 3).map((e) => (
-                        <span
-                          key={e.id}
-                          className="w-1.5 h-1.5 rounded-full"
-                          style={{ backgroundColor: e.color }}
-                        />
+                        <span key={e.id} className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: e.color }} />
                       ))}
                       {dayEvents.length > 3 && (
-                        <span className="text-[8px] text-muted-foreground">
-                          +{dayEvents.length - 3}
-                        </span>
+                        <span className="text-[8px] text-muted-foreground">+{dayEvents.length - 3}</span>
                       )}
                     </div>
                     <div className="hidden sm:block space-y-0.5 mt-0.5">
                       {dayEvents.slice(0, 2).map((e) => (
-                        <div
-                          key={e.id}
-                          className="text-[10px] leading-tight truncate rounded px-1 py-0.5 text-white"
-                          style={{ backgroundColor: e.color }}
-                        >
+                        <div key={e.id} className="text-[10px] leading-tight truncate rounded px-1 py-0.5 text-white" style={{ backgroundColor: e.color }}>
+                          {e.personal && <Lock className="inline h-2.5 w-2.5 mr-0.5" />}
                           {e.title}
                         </div>
                       ))}
                       {dayEvents.length > 2 && (
-                        <div className="text-[10px] text-muted-foreground px-1">
-                          +{dayEvents.length - 2} more
-                        </div>
+                        <div className="text-[10px] text-muted-foreground px-1">+{dayEvents.length - 2} ещё</div>
                       )}
                     </div>
                   </>
@@ -257,15 +263,17 @@ export default function CalendarPage() {
       </div>
 
       {/* Selected day panel */}
+      <AnimatePresence>
       {selectedDate && (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          transition={{ duration: 0.2 }}
+          className="rounded-xl border border-border bg-card p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">
-              {selectedDate.toLocaleDateString("en-US", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-              })}
+              {selectedDate.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" })}
             </h3>
             <Button
               variant="ghost"
@@ -273,59 +281,66 @@ export default function CalendarPage() {
               className="h-7 w-7"
               onClick={() => {
                 setShowAddForm(!showAddForm)
-                setNewEvent({ title: "", description: "", startTime: "09:00", endTime: "10:00", allDay: false, color: "#3b82f6" })
+                setNewEvent({ title: "", description: "", startTime: "09:00", endTime: "10:00", allDay: false, personal: false, color: "#3b82f6" })
               }}
             >
               {showAddForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
             </Button>
           </div>
 
-          {/* Add event form */}
           {showAddForm && (
             <div className="space-y-2 p-3 rounded-lg border border-border bg-background">
               <input
                 autoFocus
                 type="text"
-                placeholder="Event title..."
+                placeholder="Название события..."
                 value={newEvent.title}
                 onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
                 onKeyDown={(e) => e.key === "Enter" && handleAddEvent()}
-                className="w-full text-sm px-2 py-1.5 rounded-md border border-input bg-background
-                  focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full text-sm px-2 py-1.5 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
               />
               <textarea
-                placeholder="Description (optional)"
+                placeholder="Описание (необязательно)"
                 value={newEvent.description}
                 onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
                 rows={2}
-                className="w-full text-sm px-2 py-1.5 rounded-md border border-input bg-background
-                  focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                className="w-full text-sm px-2 py-1.5 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               />
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={newEvent.allDay}
-                  onChange={(e) => setNewEvent({ ...newEvent, allDay: e.target.checked })}
-                  className="rounded border-input"
-                />
-                All day
-              </label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={newEvent.allDay}
+                    onChange={(e) => setNewEvent({ ...newEvent, allDay: e.target.checked })}
+                    className="rounded border-input"
+                  />
+                  Весь день
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={newEvent.personal}
+                    onChange={(e) => setNewEvent({ ...newEvent, personal: e.target.checked })}
+                    className="rounded border-input"
+                  />
+                  <Lock className="h-3.5 w-3.5" />
+                  Личное
+                </label>
+              </div>
               {!newEvent.allDay && (
                 <div className="flex gap-2">
                   <input
                     type="time"
                     value={newEvent.startTime}
                     onChange={(e) => setNewEvent({ ...newEvent, startTime: e.target.value })}
-                    className="flex-1 text-sm px-2 py-1.5 rounded-md border border-input bg-background
-                      focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="flex-1 text-sm px-2 py-1.5 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                   <span className="self-center text-muted-foreground text-sm">—</span>
                   <input
                     type="time"
                     value={newEvent.endTime}
                     onChange={(e) => setNewEvent({ ...newEvent, endTime: e.target.value })}
-                    className="flex-1 text-sm px-2 py-1.5 rounded-md border border-input bg-background
-                      focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="flex-1 text-sm px-2 py-1.5 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
               )}
@@ -342,32 +357,28 @@ export default function CalendarPage() {
                 ))}
               </div>
               <Button size="sm" className="w-full" onClick={handleAddEvent} disabled={!newEvent.title.trim()}>
-                Add Event
+                Добавить событие
               </Button>
             </div>
           )}
 
-          {/* Events list */}
           {selectedEvents.length === 0 && !showAddForm && (
-            <p className="text-sm text-muted-foreground">No events this day</p>
+            <p className="text-sm text-muted-foreground">Нет событий в этот день</p>
           )}
           {selectedEvents.map((event) => (
-            <div
-              key={event.id}
-              className="group flex items-start gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors"
-            >
-              <div
-                className="w-1 h-full min-h-[32px] rounded-full shrink-0 mt-0.5"
-                style={{ backgroundColor: event.color }}
-              />
+            <div key={event.id} className="group flex items-start gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors">
+              <div className="w-1 h-full min-h-[32px] rounded-full shrink-0 mt-0.5" style={{ backgroundColor: event.color }} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">{event.title}</p>
+                <p className="text-sm font-medium">
+                  {event.personal && <Lock className="inline h-3 w-3 mr-1 text-muted-foreground" />}
+                  {event.title}
+                </p>
                 {event.description && (
                   <p className="text-xs text-muted-foreground mt-0.5">{event.description}</p>
                 )}
                 <p className="text-xs text-muted-foreground/60 mt-0.5">
                   {event.allDay
-                    ? "All day"
+                    ? "Весь день"
                     : `${formatTime(event.startDate)}${event.endDate ? ` — ${formatTime(event.endDate)}` : ""}`}
                   {" · "}
                   {event.createdBy.name}
@@ -381,8 +392,9 @@ export default function CalendarPage() {
               </button>
             </div>
           ))}
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   )
 }

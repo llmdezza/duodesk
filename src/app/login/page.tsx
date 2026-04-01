@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Users } from "lucide-react"
 
@@ -36,25 +37,29 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: "easeOut" }}
+        className="w-full max-w-sm space-y-6">
         <div className="text-center space-y-2">
           <div className="flex justify-center">
             <Users className="h-12 w-12 text-primary" />
           </div>
           <h1 className="text-3xl font-bold tracking-tight">DuoDesk</h1>
-          <p className="text-muted-foreground">Sign in to your family dashboard</p>
+          <p className="text-muted-foreground">Войдите в семейный дашборд</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md text-center">
-              {error}
+              Неверный email или пароль
             </div>
           )}
 
           <div className="space-y-2">
             <label htmlFor="email" className="text-sm font-medium">
-              Email
+              Почта
             </label>
             <input
               id="email"
@@ -71,7 +76,7 @@ export default function LoginPage() {
 
           <div className="space-y-2">
             <label htmlFor="password" className="text-sm font-medium">
-              Password
+              Пароль
             </label>
             <input
               id="password"
@@ -87,14 +92,14 @@ export default function LoginPage() {
           </div>
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? "Входим..." : "Войти"}
           </Button>
         </form>
 
         <p className="text-center text-xs text-muted-foreground">
-          Family access only. Contact admin for an account.
+          Только для семьи. Обратитесь к администратору для создания аккаунта.
         </p>
-      </div>
+      </motion.div>
     </div>
   )
 }

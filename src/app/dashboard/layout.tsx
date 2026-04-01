@@ -21,7 +21,7 @@ export default function DashboardLayout({
         <header className="sticky top-0 z-40 h-14 border-b border-border bg-card/95 backdrop-blur-md flex items-center justify-between px-4">
           <div className="md:hidden font-bold text-lg">DuoDesk</div>
           <div className="hidden md:block text-sm text-muted-foreground">
-            {session?.user?.name && `Hi, ${session.user.name}`}
+            {session?.user?.name && `Привет, ${session.user.name}`}
           </div>
           <div className="flex items-center gap-3">
             <ThemeDock />

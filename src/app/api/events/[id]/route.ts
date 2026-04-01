@@ -28,6 +28,7 @@ export async function PATCH(
       ...(body.startDate !== undefined && { startDate: new Date(body.startDate as string) }),
       ...(body.endDate !== undefined && { endDate: body.endDate ? new Date(body.endDate as string) : null }),
       ...(body.allDay !== undefined && { allDay: body.allDay === true }),
+      ...(body.personal !== undefined && { personal: body.personal === true }),
       ...(body.color !== undefined && { color: body.color as string }),
     },
     include: { createdBy: { select: { id: true, name: true } } },
